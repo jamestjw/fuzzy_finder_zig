@@ -30,11 +30,15 @@ pub fn interleave(comptime W: usize, comptime L: usize, strs: [L][]const u8) ![W
 }
 
 fn interleave_chunk(comptime L: usize, vecs: *[L]@Vector(L, u8)) void {
+    comptime {
+        std.debug.assert(std.math.isPowerOfTwo(L));
+    }
+
     var distance = L / 2;
 
     while (distance > 0) : (distance /= 2) {
         for (0..L) |base| {
-            if ((base & distance) == 0) {
+            if (base & distance == 0) {
                 const pair_idx = base + distance;
                 if (pair_idx < L) {
                     const new_base, const new_pair = _interleave(L, u8, vecs[base], vecs[pair_idx]);
@@ -82,11 +86,12 @@ inline fn to_vec(comptime W: usize, comptime L: usize, strs: [L][W]u8, offset: u
     var res: [L]@Vector(L, u8) = undefined;
 
     for (0..L) |i| {
-        var data: [L]u8 = std.mem.zeroes([L]u8);
+        var data: [L]u8 = undefined;
 
         if (offset + L < W) {
             @memcpy(&data, strs[i][offset..(offset + L)]);
         } else {
+            data = std.mem.zeroes([L]u8);
             const bytes = strs[i][offset..W];
             @memcpy(data[0..bytes.len], bytes);
         }
