@@ -1,6 +1,6 @@
 const std = @import("std");
 
-fn interleave(comptime W: usize, comptime L: usize, strs: [L][]const u8) ![W]@Vector(L, u8) {
+pub fn interleave(comptime W: usize, comptime L: usize, strs: [L][]const u8) ![W]@Vector(L, u8) {
     var strs_padded: [L][W]u8 = undefined;
 
     for (0..L) |i| {
