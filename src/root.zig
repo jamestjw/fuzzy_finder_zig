@@ -3,6 +3,7 @@
 //! start with main.zig instead.
 const std = @import("std");
 pub const simd_interleave = @import("simd/interleave.zig");
+pub const simd_search = @import("simd/search.zig");
 
 test {
     std.testing.refAllDeclsRecursive(@This());
