@@ -1,4 +1,5 @@
 const std = @import("std");
+const interleave_lib = @import("interleave.zig");
 
 fn ProcessedCharVec(comptime L: usize) type {
     return struct {
@@ -8,11 +9,19 @@ fn ProcessedCharVec(comptime L: usize) type {
     };
 }
 
-inline fn vector_and(comptime L: usize, v1: @Vector(L, bool), v2: @Vector(L, bool)) @Vector(L, bool) {
+inline fn vector_and(
+    comptime L: usize,
+    v1: @Vector(L, bool),
+    v2: @Vector(L, bool),
+) @Vector(L, bool) {
     return @select(bool, v1, v2, v1);
 }
 
-inline fn vector_or(comptime L: usize, v1: @Vector(L, bool), v2: @Vector(L, bool)) @Vector(L, bool) {
+inline fn vector_or(
+    comptime L: usize,
+    v1: @Vector(L, bool),
+    v2: @Vector(L, bool),
+) @Vector(L, bool) {
     return @select(bool, v1, v1, v2);
 }
 
@@ -46,6 +55,46 @@ fn build_is_delimiter_mask(comptime L: usize, chars: @Vector(L, u8)) @Vector(L, 
     const res5 = vector_or(L, res4, is_hyphen);
 
     return res5;
+}
+
+inline fn smith_waterman_inner(
+    comptime W: usize,
+    comptime L: usize,
+    needle: ProcessedCharVec(L),
+    haystack: [W]@Vector(L, u8),
+    prev_score: [W]@Vector(L, u16),
+) [W]@Vector(L, u16) {
+    _ = needle;
+    _ = haystack;
+    _ = prev_score;
+
+    if (true) unreachable;
+}
+
+fn smith_waterman(
+    comptime W: usize,
+    comptime L: usize,
+    needle: []u8,
+    haystack: [L][]const u8,
+) void {
+    const interleaved_haystack = interleave_lib.interleave(W, L, haystack);
+    var prev_score_col = [_]@Vector(L, u16){@splat(0)} ** W;
+    var max_scores: @Vector(L, u16) = @splat(0);
+
+    for (0..needle.len) |needle_idx| {
+        const needle_char = preprocess_chars(L, @splat(needle[needle_idx]));
+        prev_score_col = smith_waterman_inner(
+            W,
+            L,
+            needle_char,
+            interleaved_haystack,
+            prev_score_col,
+        );
+        max_scores = @max(max_scores, prev_score_col);
+    }
+    // TODO: add bonus score for exact match
+
+    return max_scores;
 }
 
 test "preprocess_chars" {

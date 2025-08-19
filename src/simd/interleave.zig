@@ -1,6 +1,10 @@
 const std = @import("std");
 
-pub fn interleave(comptime W: usize, comptime L: usize, strs: [L][]const u8) ![W]@Vector(L, u8) {
+pub fn interleave(
+    comptime W: usize,
+    comptime L: usize,
+    strs: [L][]const u8,
+) [W]@Vector(L, u8) {
     var strs_padded: [L][W]u8 = undefined;
 
     for (0..L) |i| {
@@ -9,7 +13,7 @@ pub fn interleave(comptime W: usize, comptime L: usize, strs: [L][]const u8) ![W
         @memcpy(strs_padded[i][0..str.len], str);
     }
 
-    const num_chunks: usize = try std.math.divCeil(usize, W, L);
+    const num_chunks: usize = std.math.divCeil(usize, W, L) catch unreachable;
     var interleaved = std.mem.zeroes([W]@Vector(L, u8));
 
     for (0..num_chunks) |i| {
@@ -119,7 +123,7 @@ test "interleave" {
         }
     }
 
-    const interleaved = try interleave(5, 16, words);
+    const interleaved = interleave(5, 16, words);
     var interleaved_array: [5][16]u8 = undefined;
 
     for (0..5) |i| {
