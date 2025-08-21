@@ -9,6 +9,13 @@ pub fn main() !void {
         "magic", "noble", "ocean", "prize",
     };
 
-    const interleaved = try interleave.interleave(5, 16, words);
+    const interleaved = interleave.interleave(5, 16, words);
     std.debug.print("Result: {any}\n", .{interleaved});
+}
+
+pub const simd_interleave = @import("simd/interleave.zig");
+pub const simd_search = @import("simd/search.zig");
+
+test {
+    std.testing.refAllDeclsRecursive(@This());
 }
