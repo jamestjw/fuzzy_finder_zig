@@ -168,8 +168,8 @@ inline fn smith_waterman_inner(
         const max_score = @max(diag_score, insert_score, delete_score);
 
         const diag_mask = max_score == diag_score;
-        delete_gap_penalty_mask = vector_or(L, max_score == delete_score, diag_mask);
-        insert_gap_penalty_mask = vector_or(L, max_score == insert_score, diag_mask);
+        delete_gap_penalty_mask = vector_or(L, max_score != delete_score, diag_mask);
+        insert_gap_penalty_mask = vector_or(L, max_score != insert_score, diag_mask);
 
         // Delimiter bonus is only enabled after we encounter a non-delimiter
         delimiter_bonus_enabled_mask = vector_or(L, delimiter_bonus_enabled_mask, vector_not(L, haystack_char.is_delimiter));
@@ -258,4 +258,37 @@ test "prefix bonus" {
     try std.testing.expectEqual(get_score("a", "abc"), matching_char_score + scoring.PREFIX_BONUS);
     try std.testing.expectEqual(get_score("a", "aabc"), matching_char_score + scoring.PREFIX_BONUS);
     try std.testing.expectEqual(get_score("a", "babc"), matching_char_score);
+}
+
+test "delimiter bonus" {
+    try std.testing.expectEqual(get_score("-", "a--bc"), matching_char_score);
+    try std.testing.expectEqual(get_score("b", "a--bc"), matching_char_score + scoring.DELIMITER_BONUS);
+    try std.testing.expectEqual(get_score("a", "a--bc"), matching_char_score + scoring.PREFIX_BONUS);
+    try std.testing.expectEqual(get_score("a", "-a--bc"), matching_char_score);
+    try std.testing.expect(get_score("a_b", "a_bb") > get_score("a_b", "a__b"));
+}
+
+test "affine gaps" {
+    // one wrong chars
+    try std.testing.expectEqual(get_score("hello", "Aheello"), matching_char_score * 5 - scoring.GAP_OPEN_PENALTY);
+    // two wrong chars
+    try std.testing.expectEqual(get_score("hello", "Aheeello"), matching_char_score * 5 - scoring.GAP_OPEN_PENALTY - scoring.GAP_EXTEND_PENALTY);
+}
+
+test "capital bonus" {
+    try std.testing.expectEqual(get_score("h", "Hello"), scoring.MATCH_SCORE + scoring.PREFIX_BONUS);
+    try std.testing.expectEqual(get_score("H", "Hello"), matching_char_score + scoring.PREFIX_BONUS);
+    try std.testing.expectEqual(get_score("H", "aaHello"), matching_char_score + scoring.CAPITALIZATION_BONUS);
+    try std.testing.expectEqual(get_score("H", "AHello"), matching_char_score);
+    try std.testing.expectEqual(get_score("H", "A_Hello"), matching_char_score + scoring.DELIMITER_BONUS);
+}
+
+test "continuous > delimiter" {
+    try std.testing.expect(get_score("hii", "hiii") > get_score("hii", "hi_i_i"));
+}
+
+test "continuous > capitalisation" {
+    // better to not have mismatches than to match on a capital letter after incurring
+    // one mismatch
+    try std.testing.expect(get_score("hi", "hii") > get_score("hi", "hxIi"));
 }
