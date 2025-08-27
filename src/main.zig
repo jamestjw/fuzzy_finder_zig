@@ -1,22 +1,41 @@
 const std = @import("std");
 const interleave = @import("./simd/interleave.zig");
 const search = @import("./search.zig");
+const utils = @import("./utils.zig");
 
 pub fn main() !void {
-    const words = [16][]const u8{
-        "apple", "bravo", "crane", "delta",
-        "early", "frost", "grape", "haste",
-        "ivory", "jumbo", "karma", "lemon",
-        "magic", "noble", "ocean", "prize",
-    };
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
-    const interleaved = interleave.interleave(5, 16, words);
-    std.debug.print("Result: {any}\n", .{interleaved});
-}
+    const argv = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, argv);
 
-pub const simd_interleave = @import("simd/interleave.zig");
-pub const simd_search = @import("simd/search.zig");
+    if (argv.len < 2) {
+        std.debug.print("Usage: {s} <query> [search-dir]\n", .{argv[0]});
+        return; // Exit if no query is provided
+    }
 
-test {
-    std.testing.refAllDeclsRecursive(@This());
+    const query = argv[1];
+    var search_dir: []const u8 = "./";
+
+    if (argv.len >= 3) {
+        search_dir = argv[2];
+    }
+
+    const files = try utils.get_files_in_dir(allocator, search_dir);
+    const matches = search.run(query, files.items, allocator);
+
+    std.mem.sort(search.Match, matches.items, {}, struct {
+        fn cmp(_: void, a: search.Match, b: search.Match) bool {
+            return a.score < b.score;
+        }
+    }.cmp);
+
+    for (matches.items) |match| {
+        std.debug.print("Score: {d}, Path: {s}\n", .{
+            match.score,
+            files.items[match.idx],
+        });
+    }
 }

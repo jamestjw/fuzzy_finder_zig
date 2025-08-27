@@ -1,15 +1,16 @@
 const std = @import("std");
+const simd_search = @import("simd/search.zig");
+
 const ArrayList = std.ArrayList;
 
-const Match = struct { score: u16 };
+pub const Match = struct { idx: usize, score: u16 };
 
-fn BucketItem(comptime W: u8) type {
+fn BucketItem(comptime W: usize) type {
     return struct { idx: usize, str: [W]u8 };
 }
 
-fn Bucket(comptime W: u8) type {
+fn Bucket(comptime W: usize) type {
     return struct {
-        // W: usize,
         items: ArrayList(BucketItem(W)),
     };
 }
@@ -26,53 +27,90 @@ const Matcher = struct {
 };
 
 inline fn pad_str(comptime W: usize, str: []const u8) [W]u8 {
-    var array: [W]u8 = std.mem.zeroes([W]u8);
-    std.mem.copy(u8, &array, str);
+    var arr: [W]u8 = std.mem.zeroes([W]u8);
+    @memcpy(arr[0..str.len], str);
 
-    return array;
+    return arr;
 }
 
-fn new_matcher(haystacks: [][]const u8) Matcher {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+fn find_needle_in_bucket(comptime W: usize, needle: []const u8, bucket: Bucket(W), scores: *ArrayList(Match)) void {
+    const L = std.simd.suggestVectorLength(u16).?;
+    var i: usize = 0;
+    const arr = bucket.items.items;
+    while (i < arr.len) : (i += L) {
+        const chunk_end = @min(i + @as(usize, @intCast(L)), arr.len);
+        // const haystack: [L][]const u8 = std.mem.zeroes([]const u8);
+        var haystack: [L][W]u8 = [_][W]u8{[_]u8{0} ** W} ** L;
+        const chunk = arr[i..chunk_end];
+        for (0..chunk.len) |j| {
+            @memcpy(&haystack[j], &chunk[j].str);
+        }
+        const res = simd_search.smith_waterman(W, L, needle, haystack);
+        for (0..chunk.len) |j| {
+            scores.append(Match{ .score = res[j], .idx = chunk[j].idx }) catch unreachable;
+        }
+    }
+}
 
+fn find_needle_in_matcher(needle: []const u8, matcher: Matcher, scores: *ArrayList(Match)) void {
+    find_needle_in_bucket(8, needle, matcher.bucket_8, scores);
+    find_needle_in_bucket(16, needle, matcher.bucket_16, scores);
+    find_needle_in_bucket(32, needle, matcher.bucket_32, scores);
+    find_needle_in_bucket(64, needle, matcher.bucket_64, scores);
+    find_needle_in_bucket(128, needle, matcher.bucket_128, scores);
+    find_needle_in_bucket(256, needle, matcher.bucket_256, scores);
+    find_needle_in_bucket(512, needle, matcher.bucket_512, scores);
+}
+
+fn new_matcher(haystacks: [][]const u8, allocator: std.mem.Allocator) Matcher {
     var matcher = Matcher{
-        .bucket_8 = Bucket(8){ .items = ArrayList([8]u8).init(allocator) },
-        .bucket_16 = Bucket(16){ .items = ArrayList([16]u8).init(allocator) },
-        .bucket_32 = Bucket(32){ .items = ArrayList([32]u8).init(allocator) },
-        .bucket_64 = Bucket(64){ .items = ArrayList([64]u8).init(allocator) },
-        .bucket_128 = Bucket(128){ .items = ArrayList([128]u8).init(allocator) },
-        .bucket_256 = Bucket(256){ .items = ArrayList([256]u8).init(allocator) },
-        .bucket_512 = Bucket(512){ .items = ArrayList([512]u8).init(allocator) },
+        .bucket_8 = Bucket(8){ .items = ArrayList(BucketItem(8)).init(allocator) },
+        .bucket_16 = Bucket(16){ .items = ArrayList(BucketItem(16)).init(allocator) },
+        .bucket_32 = Bucket(32){ .items = ArrayList(BucketItem(32)).init(allocator) },
+        .bucket_64 = Bucket(64){ .items = ArrayList(BucketItem(64)).init(allocator) },
+        .bucket_128 = Bucket(128){ .items = ArrayList(BucketItem(128)).init(allocator) },
+        .bucket_256 = Bucket(256){ .items = ArrayList(BucketItem(256)).init(allocator) },
+        .bucket_512 = Bucket(512){ .items = ArrayList(BucketItem(512)).init(allocator) },
     };
 
+    // TODO: if we are doing the padding here, don't do it inside, its probably to do it here
+    // since we have the length, i.e. we can inject it into the type
     for (0..haystacks.len) |idx| {
         const haystack = haystacks[idx];
 
         switch (haystack.len) {
             1...8 => {
-                matcher.bucket_8.append(BucketItem(8){ .idx = idx, .str = pad_str(8, haystack) }) catch unreachable;
+                matcher.bucket_8.items.append(BucketItem(8){ .idx = idx, .str = pad_str(8, haystack) }) catch unreachable;
             },
             9...16 => {
-                matcher.bucket_16.append(BucketItem(16){ .idx = idx, .str = pad_str(16, haystack) }) catch unreachable;
+                matcher.bucket_16.items.append(BucketItem(16){ .idx = idx, .str = pad_str(16, haystack) }) catch unreachable;
             },
             17...32 => {
-                matcher.bucket_32.append(BucketItem(32){ .idx = idx, .str = pad_str(32, haystack) }) catch unreachable;
+                matcher.bucket_32.items.append(BucketItem(32){ .idx = idx, .str = pad_str(32, haystack) }) catch unreachable;
             },
             33...64 => {
-                matcher.bucket_64.append(BucketItem(64){ .idx = idx, .str = pad_str(64, haystack) }) catch unreachable;
+                matcher.bucket_64.items.append(BucketItem(64){ .idx = idx, .str = pad_str(64, haystack) }) catch unreachable;
             },
             65...128 => {
-                matcher.bucket_128.append(BucketItem(128){ .idx = idx, .str = pad_str(128, haystack) }) catch unreachable;
+                matcher.bucket_128.items.append(BucketItem(128){ .idx = idx, .str = pad_str(128, haystack) }) catch unreachable;
             },
             129...256 => {
-                matcher.bucket_256.append(BucketItem(256){ .idx = idx, .str = pad_str(256, haystack) }) catch unreachable;
+                matcher.bucket_256.items.append(BucketItem(256){ .idx = idx, .str = pad_str(256, haystack) }) catch unreachable;
             },
             257...512 => {
-                matcher.bucket_512.append(BucketItem(512){ .idx = idx, .str = pad_str(512, haystack) }) catch unreachable;
+                matcher.bucket_512.items.append(BucketItem(512){ .idx = idx, .str = pad_str(512, haystack) }) catch unreachable;
             },
             else => {},
         }
     }
+
+    return matcher;
+}
+
+pub fn run(needle: []const u8, haystacks: [][]const u8, allocator: std.mem.Allocator) ArrayList(Match) {
+    var scores = ArrayList(Match).init(allocator);
+    const matcher = new_matcher(haystacks, allocator);
+    find_needle_in_matcher(needle, matcher, &scores);
+
+    return scores;
 }

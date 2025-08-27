@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("../utils.zig");
 const interleave_lib = @import("interleave.zig");
 const scoring = @import("../scoring.zig");
 
@@ -186,7 +187,7 @@ pub fn smith_waterman(
     comptime W: usize,
     comptime L: usize,
     needle: []const u8,
-    haystack: [L][]const u8,
+    haystack: [L][W]u8,
 ) [L]u16 {
     const interleaved_haystack = interleave_lib.interleave(W, L, haystack);
     var processed_haystack: [W]ProcessedHaystackCharVec(L) = undefined;
@@ -243,7 +244,7 @@ test "delimiter" {
 }
 
 fn get_score(needle: []const u8, haystack: []const u8) u16 {
-    const res = smith_waterman(16, 1, needle, [_][]const u8{haystack});
+    const res = smith_waterman(16, 1, needle, [_][16]u8{utils.pad_str(16, haystack)});
     return res[0];
 }
 

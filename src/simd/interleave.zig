@@ -3,22 +3,14 @@ const std = @import("std");
 pub fn interleave(
     comptime W: usize,
     comptime L: usize,
-    strs: [L][]const u8,
+    strs: [L][W]u8,
 ) [W]@Vector(L, u8) {
-    var strs_padded: [L][W]u8 = undefined;
-
-    for (0..L) |i| {
-        const str = strs[i];
-        strs_padded[i] = std.mem.zeroes([W]u8);
-        @memcpy(strs_padded[i][0..str.len], str);
-    }
-
     const num_chunks: usize = std.math.divCeil(usize, W, L) catch unreachable;
     var interleaved = std.mem.zeroes([W]@Vector(L, u8));
 
     for (0..num_chunks) |i| {
         const offset = i * L;
-        var vecs: [L]@Vector(L, u8) = to_vec(W, L, strs_padded, offset);
+        var vecs: [L]@Vector(L, u8) = to_vec(W, L, strs, offset);
         interleave_chunk(L, &vecs);
 
         if (offset + L > W) {
@@ -115,15 +107,17 @@ test "interleave" {
         "ivory", "jumbo", "karma", "lemon",
         "magic", "noble", "ocean", "prize",
     };
+    var words_const: [16][5]u8 = undefined;
     var transposed: [5][16]u8 = undefined;
 
     for (0..5) |col| {
         for (0..16) |row| {
+            words_const[row][col] = words[row][col];
             transposed[col][row] = words[row][col];
         }
     }
 
-    const interleaved = interleave(5, 16, words);
+    const interleaved = interleave(5, 16, words_const);
     var interleaved_array: [5][16]u8 = undefined;
 
     for (0..5) |i| {
