@@ -4,9 +4,8 @@ const search = @import("./search.zig");
 const utils = @import("./utils.zig");
 
 pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+    var gpa = std.heap.DebugAllocator(.{}){};
+    const allocator = gpa.allocator();
 
     const argv = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, argv);
@@ -24,7 +23,8 @@ pub fn main() !void {
     }
 
     const files = try utils.get_files_in_dir(allocator, search_dir);
-    const matches = search.run(query, files.items, allocator);
+    const matches = search.run(allocator, query, files.items);
+    defer matches.deinit();
 
     std.mem.sort(search.Match, matches.items, {}, struct {
         fn cmp(_: void, a: search.Match, b: search.Match) bool {

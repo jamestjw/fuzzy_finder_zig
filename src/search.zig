@@ -24,6 +24,27 @@ const Matcher = struct {
     bucket_128: Bucket(128),
     bucket_256: Bucket(256),
     bucket_512: Bucket(512),
+
+    fn init(allocator: std.mem.Allocator) Matcher {
+        return Matcher{
+            .bucket_8 = Bucket(8){ .items = ArrayList(BucketItem(8)).init(allocator) },
+            .bucket_16 = Bucket(16){ .items = ArrayList(BucketItem(16)).init(allocator) },
+            .bucket_32 = Bucket(32){ .items = ArrayList(BucketItem(32)).init(allocator) },
+            .bucket_64 = Bucket(64){ .items = ArrayList(BucketItem(64)).init(allocator) },
+            .bucket_128 = Bucket(128){ .items = ArrayList(BucketItem(128)).init(allocator) },
+            .bucket_256 = Bucket(256){ .items = ArrayList(BucketItem(256)).init(allocator) },
+            .bucket_512 = Bucket(512){ .items = ArrayList(BucketItem(512)).init(allocator) },
+        };
+    }
+    fn deinit(m: Matcher) void {
+        m.bucket_8.items.deinit();
+        m.bucket_16.items.deinit();
+        m.bucket_32.items.deinit();
+        m.bucket_64.items.deinit();
+        m.bucket_128.items.deinit();
+        m.bucket_256.items.deinit();
+        m.bucket_512.items.deinit();
+    }
 };
 
 inline fn pad_str(comptime W: usize, str: []const u8) [W]u8 {
@@ -62,16 +83,8 @@ fn find_needle_in_matcher(needle: []const u8, matcher: Matcher, scores: *ArrayLi
     find_needle_in_bucket(512, needle, matcher.bucket_512, scores);
 }
 
-fn new_matcher(haystacks: [][]const u8, allocator: std.mem.Allocator) Matcher {
-    var matcher = Matcher{
-        .bucket_8 = Bucket(8){ .items = ArrayList(BucketItem(8)).init(allocator) },
-        .bucket_16 = Bucket(16){ .items = ArrayList(BucketItem(16)).init(allocator) },
-        .bucket_32 = Bucket(32){ .items = ArrayList(BucketItem(32)).init(allocator) },
-        .bucket_64 = Bucket(64){ .items = ArrayList(BucketItem(64)).init(allocator) },
-        .bucket_128 = Bucket(128){ .items = ArrayList(BucketItem(128)).init(allocator) },
-        .bucket_256 = Bucket(256){ .items = ArrayList(BucketItem(256)).init(allocator) },
-        .bucket_512 = Bucket(512){ .items = ArrayList(BucketItem(512)).init(allocator) },
-    };
+fn new_matcher(allocator: std.mem.Allocator, haystacks: [][]const u8) Matcher {
+    var matcher = Matcher.init(allocator);
 
     // TODO: if we are doing the padding here, don't do it inside, its probably to do it here
     // since we have the length, i.e. we can inject it into the type
@@ -107,9 +120,12 @@ fn new_matcher(haystacks: [][]const u8, allocator: std.mem.Allocator) Matcher {
     return matcher;
 }
 
-pub fn run(needle: []const u8, haystacks: [][]const u8, allocator: std.mem.Allocator) ArrayList(Match) {
+pub fn run(allocator: std.mem.Allocator, needle: []const u8, haystacks: [][]const u8) ArrayList(Match) {
     var scores = ArrayList(Match).init(allocator);
-    const matcher = new_matcher(haystacks, allocator);
+
+    const matcher = new_matcher(allocator, haystacks);
+    defer Matcher.deinit(matcher);
+
     find_needle_in_matcher(needle, matcher, &scores);
 
     return scores;
