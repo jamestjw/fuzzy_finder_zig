@@ -56,7 +56,6 @@ fn find_needle_in_bucket(comptime W: usize, needle: []const u8, bucket: Bucket(W
     const arr = bucket.items.items;
     while (i < arr.len) : (i += L) {
         const chunk_end = @min(i + @as(usize, @intCast(L)), arr.len);
-        // const haystack: [L][]const u8 = std.mem.zeroes([]const u8);
         var haystack: [L][W]u8 = [_][W]u8{[_]u8{0} ** W} ** L;
         const chunk = arr[i..chunk_end];
         for (0..chunk.len) |j| {
@@ -132,4 +131,8 @@ pub fn run(allocator: std.mem.Allocator, needle: []const u8, haystacks: [][]cons
     find_needle_in_matcher(allocator, needle, matcher, &scores);
 
     return scores;
+}
+
+test "search" {
+    _ = @import("test_search.zig");
 }

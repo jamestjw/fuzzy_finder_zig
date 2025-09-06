@@ -41,7 +41,8 @@ pub fn smith_waterman(
     @memset(prev_score, 0);
     var max_score: u16 = 0;
 
-    var preprocessed_haystack: []PreprocessedHaystackChar = undefined;
+    var preprocessed_haystack = allocator.alloc(PreprocessedHaystackChar, haystack.len) catch unreachable;
+    defer allocator.free(preprocessed_haystack);
     for (haystack, 0..) |h, i| {
         preprocessed_haystack[i] = preprocess_haystack_char(h);
     }
@@ -66,7 +67,7 @@ pub fn smith_waterman(
             const match_score = if (haystack_idx > 0) block: {
                 const prev_haystack_char = preprocessed_haystack[haystack_idx - 1];
                 // Bonus if we match on an uppercase letter that succeeds a lowercase letter
-                const capitalisation_mask = haystack_char.is_upper and prev_haystack_char.is_upper;
+                const capitalisation_mask = haystack_char.is_upper and prev_haystack_char.is_lower;
                 const capitalisation_bonus = if (capitalisation_mask) scoring.CAPITALIZATION_BONUS else 0;
                 const delimiter_bonus_mask =
                     prev_haystack_is_delimiter and
@@ -93,18 +94,19 @@ pub fn smith_waterman(
             const delete_gap_penalty = if (delete_gap_penalty_mask) scoring.GAP_OPEN_PENALTY else scoring.GAP_EXTEND_PENALTY;
             const delete_score = left -| delete_gap_penalty;
 
-            const diag_mask = max_score == diag_score;
-            delete_gap_penalty_mask = max_score != delete_score or diag_mask;
-            insert_gap_penalty_mask = max_score != insert_score or diag_mask;
+            const final_score = @max(diag_score, insert_score, delete_score);
+
+            const diag_mask = final_score == diag_score;
+            delete_gap_penalty_mask = final_score != delete_score or diag_mask;
+            insert_gap_penalty_mask = final_score != insert_score or diag_mask;
 
             // Delimiter bonus is only enabled after we encounter a non-delimiter
             delimiter_bonus_enabled_mask = delimiter_bonus_enabled_mask or !haystack_char.is_delimiter;
 
-            curr_score[haystack_idx] = max_score;
+            curr_score[haystack_idx] = final_score;
 
             prev_haystack_is_delimiter = haystack_char.is_delimiter;
-
-            max_score = @max(max_score, curr_score[haystack_idx]);
+            max_score = @max(max_score, final_score);
         }
         allocator.free(prev_score);
         prev_score = curr_score;
