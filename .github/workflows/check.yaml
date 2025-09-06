@@ -21,5 +21,8 @@ jobs:
       - name: "Check formatting"
         run: zig fmt --check .
 
+      - name: "Run checks"
+        run: zig build check
+
       - name: "Run tests"
         run: zig build test
