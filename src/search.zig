@@ -133,6 +133,19 @@ pub fn run(allocator: std.mem.Allocator, needle: []const u8, haystacks: [][]cons
     return scores;
 }
 
+pub fn run_no_simd(allocator: std.mem.Allocator, needle: []const u8, haystacks: [][]const u8) ArrayList(Match) {
+    var scores = ArrayList(Match).init(allocator);
+
+    for (haystacks, 0..) |haystack, idx| {
+        scores.append(Match{
+            .score = regular_search.smith_waterman(allocator, needle, haystack),
+            .idx = idx,
+        }) catch unreachable;
+    }
+
+    return scores;
+}
+
 test "search" {
     _ = @import("test_search.zig");
 }
